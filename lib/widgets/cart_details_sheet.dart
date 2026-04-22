@@ -86,8 +86,7 @@ class CartTileWithHero extends StatelessWidget {
                     const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
                 child: Row(
                   children: const [
-                    Icon(Icons.person_rounded,
-                        size: 14, color: Colors.white70),
+                    Icon(Icons.person_rounded, size: 14, color: Colors.white70),
                     SizedBox(width: 6),
                     Text(
                       'Added by me',
@@ -202,8 +201,7 @@ class CartTileWithHero extends StatelessWidget {
                       decoration: BoxDecoration(
                         color: const Color(0xFFEAF3DE),
                         borderRadius: BorderRadius.circular(999),
-                        border:
-                            Border.all(color: const Color(0xFFb8daa0)),
+                        border: Border.all(color: const Color(0xFFb8daa0)),
                       ),
                       child: const Text(
                         'In stock',
@@ -273,236 +271,242 @@ class _CartDetailSheet extends StatelessWidget {
           ),
         ],
       ),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.stretch,
+      child: Stack(
         children: [
-          // ── Pill handle ───────────────────────────────────────────
-          Center(
-            child: Container(
-              width: 40,
-              height: 4,
-              margin: const EdgeInsets.only(top: 14, bottom: 20),
-              decoration: BoxDecoration(
-                color: Colors.grey[200],
-                borderRadius: BorderRadius.circular(2),
-              ),
-            ),
-          ),
-
-          // ── Hero icon (only hero — no text hero to avoid jank) ────
-          Center(
-            child: Hero(
-              tag: _heroIconTag(cart.id),
-              transitionOnUserGestures: true,
-              child: Material(
-                color: Colors.transparent,
-                child: Container(
-                  width: 64,
-                  height: 64,
-                  decoration: BoxDecoration(
-                    gradient: addedByMe
-                        ? const LinearGradient(
-                            colors: [Color(0xFF0F766E), Color(0xFF14B8A6)],
-                            begin: Alignment.topLeft,
-                            end: Alignment.bottomRight,
-                          )
-                        : null,
-                    color: addedByMe ? null : const Color(0xFFE1F5EE),
-                    borderRadius: BorderRadius.circular(18),
-                    boxShadow: addedByMe
-                        ? [
-                            BoxShadow(
-                              color: teal.withOpacity(0.28),
-                              blurRadius: 16,
-                              offset: const Offset(0, 6),
-                            ),
-                          ]
-                        : [],
-                  ),
-                  child: Icon(
-                    Icons.inventory_2_outlined,
-                    size: 30,
-                    color: addedByMe ? Colors.white : teal,
-                  ),
-                ),
-              ),
-            ),
-          ),
-
-          const SizedBox(height: 14),
-
-          // ── Title + subtitle (plain widgets, no Hero on text) ─────
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 24),
+          // Main scrollable content
+          SingleChildScrollView(
             child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                Text(
-                  title,
-                  textAlign: TextAlign.center,
-                  style: const TextStyle(
-                    fontSize: 20,
-                    fontWeight: FontWeight.w800,
-                    color: Color(0xFF0D1117),
-                    letterSpacing: -0.3,
+                const SizedBox(height: 14), // Space for the close button
+
+                // ── Hero icon (only hero — no text hero to avoid jank) ────
+                Center(
+                  child: Hero(
+                    tag: _heroIconTag(cart.id),
+                    transitionOnUserGestures: true,
+                    child: Material(
+                      color: Colors.transparent,
+                      child: Container(
+                        width: 64,
+                        height: 64,
+                        decoration: BoxDecoration(
+                          gradient: addedByMe
+                              ? const LinearGradient(
+                                  colors: [
+                                    Color(0xFF0F766E),
+                                    Color(0xFF14B8A6)
+                                  ],
+                                  begin: Alignment.topLeft,
+                                  end: Alignment.bottomRight,
+                                )
+                              : null,
+                          color: addedByMe ? null : const Color(0xFFE1F5EE),
+                          borderRadius: BorderRadius.circular(18),
+                          boxShadow: addedByMe
+                              ? [
+                                  BoxShadow(
+                                    color: teal.withOpacity(0.28),
+                                    blurRadius: 16,
+                                    offset: const Offset(0, 6),
+                                  ),
+                                ]
+                              : [],
+                        ),
+                        child: Icon(
+                          Icons.inventory_2_outlined,
+                          size: 30,
+                          color: addedByMe ? Colors.white : teal,
+                        ),
+                      ),
+                    ),
                   ),
                 ),
-                if (subtitle.isNotEmpty) ...[
-                  const SizedBox(height: 6),
-                  Text(
-                    subtitle,
-                    textAlign: TextAlign.center,
-                    style: TextStyle(
-                      fontSize: 14,
-                      color: Colors.grey[500],
-                      height: 1.5,
-                    ),
-                  ),
-                ],
-                if (addedByMe) ...[
-                  const SizedBox(height: 10),
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                        horizontal: 12, vertical: 5),
-                    decoration: BoxDecoration(
-                      color: teal.withOpacity(0.08),
-                      borderRadius: BorderRadius.circular(999),
-                    ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: const [
-                        Icon(Icons.person_rounded,
-                            size: 13, color: Color(0xFF0F766E)),
-                        SizedBox(width: 5),
+
+                const SizedBox(height: 14),
+
+                // ── Title + subtitle (plain widgets, no Hero on text) ─────
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 24),
+                  child: Column(
+                    children: [
+                      Text(
+                        title,
+                        textAlign: TextAlign.center,
+                        style: const TextStyle(
+                          fontSize: 20,
+                          fontWeight: FontWeight.w800,
+                          color: Color(0xFF0D1117),
+                          letterSpacing: -0.3,
+                        ),
+                      ),
+                      if (subtitle.isNotEmpty) ...[
+                        const SizedBox(height: 6),
                         Text(
-                          'Added by me',
+                          subtitle,
+                          textAlign: TextAlign.center,
                           style: TextStyle(
-                            fontSize: 12,
-                            fontWeight: FontWeight.w600,
-                            color: Color(0xFF0F766E),
+                            fontSize: 14,
+                            color: Colors.grey[500],
+                            height: 1.5,
                           ),
                         ),
                       ],
+                      if (addedByMe) ...[
+                        const SizedBox(height: 10),
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 12, vertical: 5),
+                          decoration: BoxDecoration(
+                            color: teal.withOpacity(0.08),
+                            borderRadius: BorderRadius.circular(999),
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: const [
+                              Icon(Icons.person_rounded,
+                                  size: 13, color: Color(0xFF0F766E)),
+                              SizedBox(width: 5),
+                              Text(
+                                'Added by me',
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w600,
+                                  color: Color(0xFF0F766E),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ],
+                  ),
+                ),
+
+                const SizedBox(height: 24),
+
+                // ── Detail card ───────────────────────────────────────────
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 24),
+                  child: Container(
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFF8FAFC),
+                      borderRadius: BorderRadius.circular(16),
+                      border: Border.all(color: const Color(0xFFE2E8F0)),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        // SKU — tappable copy
+                        if (sku.isNotEmpty)
+                          _DetailRow(
+                            icon: Icons.qr_code_rounded,
+                            label: 'SKU',
+                            value: sku,
+                            isFirst: true,
+                            onTap: () {
+                              Clipboard.setData(ClipboardData(text: sku));
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(
+                                  content:
+                                      const Text('SKU copied to clipboard'),
+                                  behavior: SnackBarBehavior.floating,
+                                  shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(10)),
+                                ),
+                              );
+                            },
+                            trailing: const Icon(Icons.copy_rounded,
+                                size: 14, color: Color(0xFF0F766E)),
+                          ),
+
+                        // Cart qty
+                        if (qty != null)
+                          _DetailRow(
+                            icon: Icons.shopping_bag_outlined,
+                            label: 'Cart Qty',
+                            value: '$qty units',
+                            isFirst: firstField == 'qty',
+                          ),
+
+                        // Stock
+                        if (stock != null)
+                          _DetailRow(
+                            icon: Icons.layers_outlined,
+                            label: 'In Stock',
+                            value: '$stock units',
+                            isFirst: firstField == 'stock',
+                            valueColor: stock > 0
+                                ? const Color(0xFF2F6010)
+                                : const Color(0xFFEF4444),
+                          ),
+
+                        // Product ID — multi-line selectable, tappable copy
+                        if (productId.isNotEmpty)
+                          _DetailRowMultiline(
+                            icon: Icons.tag_rounded,
+                            label: 'Product ID',
+                            value: productId,
+                            isFirst: firstField == 'productId',
+                            isLast: true,
+                            onTap: () {
+                              Clipboard.setData(ClipboardData(text: productId));
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(
+                                  content: const Text(
+                                      'Product ID copied to clipboard'),
+                                  behavior: SnackBarBehavior.floating,
+                                  shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(10)),
+                                ),
+                              );
+                            },
+                            trailing: const Icon(Icons.copy_rounded,
+                                size: 14, color: Color(0xFF0F766E)),
+                          ),
+                      ],
                     ),
                   ),
-                ],
+                ),
+
+                const SizedBox(height: 32),
               ],
             ),
           ),
 
-          const SizedBox(height: 24),
-
-          // ── Detail card ───────────────────────────────────────────
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 24),
-            child: Container(
-              decoration: BoxDecoration(
-                color: const Color(0xFFF8FAFC),
-                borderRadius: BorderRadius.circular(16),
-                border: Border.all(color: const Color(0xFFE2E8F0)),
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  // SKU — tappable copy
-                  if (sku.isNotEmpty)
-                    _DetailRow(
-                      icon: Icons.qr_code_rounded,
-                      label: 'SKU',
-                      value: sku,
-                      isFirst: true,
-                      onTap: () {
-                        Clipboard.setData(ClipboardData(text: sku));
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(
-                            content: const Text('SKU copied to clipboard'),
-                            behavior: SnackBarBehavior.floating,
-                            shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(10)),
-                          ),
-                        );
-                      },
-                      trailing: const Icon(Icons.copy_rounded,
-                          size: 14, color: Color(0xFF0F766E)),
-                    ),
-
-                  // Cart qty
-                  if (qty != null)
-                    _DetailRow(
-                      icon: Icons.shopping_bag_outlined,
-                      label: 'Cart Qty',
-                      value: '$qty units',
-                      isFirst: firstField == 'qty',
-                    ),
-
-                  // Stock
-                  if (stock != null)
-                    _DetailRow(
-                      icon: Icons.layers_outlined,
-                      label: 'In Stock',
-                      value: '$stock units',
-                      isFirst: firstField == 'stock',
-                      valueColor: stock > 0
-                          ? const Color(0xFF2F6010)
-                          : const Color(0xFFEF4444),
-                    ),
-
-                  // Product ID — multi-line selectable, tappable copy
-                  if (productId.isNotEmpty)
-                    _DetailRowMultiline(
-                      icon: Icons.tag_rounded,
-                      label: 'Product ID',
-                      value: productId,
-                      isFirst: firstField == 'productId',
-                      isLast: true,
-                      onTap: () {
-                        Clipboard.setData(ClipboardData(text: productId));
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(
-                            content:
-                                const Text('Product ID copied to clipboard'),
-                            behavior: SnackBarBehavior.floating,
-                            shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(10)),
-                          ),
-                        );
-                      },
-                      trailing: const Icon(Icons.copy_rounded,
-                          size: 14, color: Color(0xFF0F766E)),
-                    ),
-                ],
-              ),
-            ),
-          ),
-
-          const SizedBox(height: 24),
-
-          // ── Close button ──────────────────────────────────────────
-          Padding(
-            padding: const EdgeInsets.fromLTRB(24, 0, 24, 8),
-            child: SizedBox(
-              height: 50,
-              child: ElevatedButton(
-                onPressed: () => Navigator.pop(context),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: teal,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12),
+          // Top-right circular close button
+          Positioned(
+            top: 8,
+            right: 8,
+            child: Material(
+              color: Colors.transparent,
+              child: InkWell(
+                onTap: () => Navigator.pop(context),
+                borderRadius: BorderRadius.circular(30),
+                child: Container(
+                  width: 40,
+                  height: 40,
+                  decoration: BoxDecoration(
+                    color: Colors.grey[100],
+                    shape: BoxShape.circle,
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withOpacity(0.05),
+                        blurRadius: 8,
+                        offset: const Offset(0, 2),
+                      ),
+                    ],
                   ),
-                  elevation: 0,
-                ),
-                child: const Text(
-                  'Close',
-                  style: TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.w700,
-                    color: Colors.white,
+                  child: const Icon(
+                    Icons.close_rounded,
+                    size: 20,
+                    color: Color(0xFF0F766E),
                   ),
                 ),
               ),
             ),
           ),
-          const SizedBox(height: 8),
         ],
       ),
     );

@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
+import 'package:audioplayers/audioplayers.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -30,14 +31,14 @@ class _ScannedItem {
   final ProductList? product;
   final _ScanStatus status;
   final bool addedByMe;
-  final String? cartId; // ← new field
+  final String? cartId;
 
   const _ScannedItem({
     required this.rawSku,
     required this.status,
     this.product,
     this.addedByMe = false,
-    this.cartId, // ← new field
+    this.cartId,
   });
 
   String get displayName {
@@ -66,7 +67,6 @@ class _AddProductScreenState extends State<AddProductScreen>
     with WidgetsBindingObserver {
 
   // ── Shared WebSocket room — MUST match CartListScreen ─────────────────────
-  // Both screens join the same room so events cross over instantly.
   static const String _cartRoom = 'cartevents';
 
   // ── Camera ────────────────────────────────────────────────────────────────
@@ -79,6 +79,9 @@ class _AddProductScreenState extends State<AddProductScreen>
   bool _nfcListening = false;
   bool _nfcReady     = false;
   String _nfcStatus  = 'Initialising NFC…';
+
+  // ── Audio ─────────────────────────────────────────────────────────────────
+  final AudioPlayer _audioPlayer = AudioPlayer();
 
   // ── Shared ────────────────────────────────────────────────────────────────
   final List<_ScannedItem> _scannedItems = [];
@@ -151,9 +154,7 @@ class _AddProductScreenState extends State<AddProductScreen>
       } else if (event == 'removed' && cartId != null) {
         debugPrint('[AddProductScreen] ✓ removeItemLocally cartId=$cartId');
         if (mounted) {
-          // 1. Find the SKU of the item being removed (to unlock re-scanning)
           String? skuToUnlock;
-          // Search in both controllers to find the SKU associated with this cartId
           final allItems = [..._controller.items, ..._myItemsController.items];
           for (final c in allItems) {
             if (c.id?.trim() == cartId.trim()) {
@@ -162,11 +163,9 @@ class _AddProductScreenState extends State<AddProductScreen>
             }
           }
 
-          // 2. Remove from controllers (updates the "Added by Me" list)
           _controller.removeItemLocally(cartId);
           _myItemsController.removeItemLocally(cartId);
 
-          // 3. Clean up history and allow re-scanning
           if (skuToUnlock != null) {
             debugPrint('[AddProductScreen] → Unlocking SKU: $skuToUnlock');
             _processedSkus.remove(skuToUnlock);
@@ -174,7 +173,6 @@ class _AddProductScreenState extends State<AddProductScreen>
                 item.rawSku.toLowerCase() == skuToUnlock ||
                 item.cartId?.trim() == cartId.trim());
           } else {
-            // Fallback: just remove by cartId if we couldn't find the SKU
             _scannedItems.removeWhere((item) => item.cartId?.trim() == cartId.trim());
           }
 
@@ -190,6 +188,25 @@ class _AddProductScreenState extends State<AddProductScreen>
     final user = await LocalDb.getUser();
     if (!mounted) return;
     setState(() => _currentUserId = user?.id?.trim());
+  }
+
+  // ── Audio helpers ─────────────────────────────────────────────────────────
+  Future<void> _playSuccess() async {
+    try {
+      await _audioPlayer.stop();
+      await _audioPlayer.play(AssetSource('audio/success.mp3'));
+    } catch (e) {
+      debugPrint('[AddProductScreen] audio success error: $e');
+    }
+  }
+
+  Future<void> _playError() async {
+    try {
+      await _audioPlayer.stop();
+      await _audioPlayer.play(AssetSource('audio/error.mp3'));
+    } catch (e) {
+      debugPrint('[AddProductScreen] audio error error: $e');
+    }
   }
 
   // ── App lifecycle ─────────────────────────────────────────────────────────
@@ -282,17 +299,12 @@ class _AddProductScreenState extends State<AddProductScreen>
       onDiscovered: _onNfcDiscovered,
       onError: (error) async {
         if (!mounted) return;
+        // Session ended (e.g. user dismissed native dialog) — allow tap-to-restart
         setState(() {
-          _nfcReady  = false;
-          _nfcStatus = 'NFC error — try again';
+          _nfcListening = false;
+          _nfcReady     = false;
+          _nfcStatus    = 'Tap here to restart NFC scanning';
         });
-        await Future.delayed(const Duration(seconds: 2));
-        if (mounted && _mode == _ScanMode.nfc) {
-          setState(() {
-            _nfcReady  = true;
-            _nfcStatus = 'Hold NFC tag near the top of your device';
-          });
-        }
       },
     );
   }
@@ -303,6 +315,24 @@ class _AddProductScreenState extends State<AddProductScreen>
     _nfcReady     = false;
     try { await NfcManager.instance.stopSession(); } catch (_) {}
     if (mounted) setState(() => _nfcStatus = 'NFC stopped');
+  }
+
+  /// Fully stops any existing NFC session and starts a fresh one.
+  /// Safe to call even when the session has already been closed by the OS.
+  Future<void> _restartNfc() async {
+    if (!mounted) return;
+    // Silently attempt to stop any lingering session
+    if (_nfcListening) {
+      _nfcListening = false;
+      _nfcReady     = false;
+      try { await NfcManager.instance.stopSession(); } catch (_) {}
+    }
+    setState(() {
+      _nfcReady  = false;
+      _nfcStatus = 'Starting NFC…';
+    });
+    await Future.delayed(const Duration(milliseconds: 150));
+    if (mounted) await _startNfc();
   }
 
   String? _extractSkuFromTag(NfcTag tag) {
@@ -437,6 +467,7 @@ class _AddProductScreenState extends State<AddProductScreen>
         try { ctrl?.dispose(); } catch (_) {}
       });
     });
+    _audioPlayer.dispose();
     if (_ownsController) _controller.dispose();
     _myItemsController.dispose();
     super.dispose();
@@ -449,10 +480,6 @@ class _AddProductScreenState extends State<AddProductScreen>
     if (_mode != _ScanMode.barcode || _isApiLoading) return;
     final raw = capture.barcodes.isEmpty ? null : capture.barcodes.first.rawValue;
     if (raw == null) return;
-    final last = _lastScanAt;
-    if (last != null &&
-        DateTime.now().difference(last) < const Duration(milliseconds: 1200)) return;
-    _lastScanAt = DateTime.now();
     await _processSku(raw.trim(), isNfc: false);
   }
 
@@ -482,10 +509,9 @@ class _AddProductScreenState extends State<AddProductScreen>
       if (!mounted) return;
       if (existsInCart) {
         _processedSkus.add(normalized);
-        // Try to find the cartId if possible, though for 'alreadyInCart' we might not have it easily
-        // without fetching the whole list, but we can at least mark it.
         _insert(_ScannedItem(rawSku: sku, status: _ScanStatus.alreadyInCart));
         HapticFeedback.selectionClick();
+        _playError(); // ← error sound: already in cart
         _setStatus('Already in cart: $sku', isNfc: isNfc);
         return;
       }
@@ -498,6 +524,7 @@ class _AddProductScreenState extends State<AddProductScreen>
         _processedSkus.add(normalized);
         _insert(_ScannedItem(rawSku: sku, status: _ScanStatus.notAvailable));
         HapticFeedback.vibrate();
+        _playError(); // ← error sound: not available
         _setStatus('Not available: $sku', isNfc: isNfc);
         return;
       }
@@ -508,7 +535,6 @@ class _AddProductScreenState extends State<AddProductScreen>
       if (!mounted) return;
 
       if (ok) {
-        // Find the newly added Cart by variantId in the refreshed list
         final variantId = (product.variantDetail?.id ?? '').trim();
         Cart? newCart;
         if (variantId.isNotEmpty) {
@@ -528,15 +554,15 @@ class _AddProductScreenState extends State<AddProductScreen>
             product: product,
             status: _ScanStatus.added,
             addedByMe: isMe,
-            cartId: newCart.id, // ← Store the cart item ID
+            cartId: newCart.id,
           ));
           SystemSound.play(SystemSoundType.click);
           HapticFeedback.lightImpact();
+          _playSuccess(); // ← success sound: added to cart
           _setStatus('Added: ${product.variantDetail?.sku ?? sku}', isNfc: isNfc);
           _myItemsController.refresh();
 
           debugPrint('[AddProductScreen] Broadcasting "added" on room=$_cartRoom cart=${newCart.id}');
-          // ── Broadcast on SHARED room → CartListScreen picks this up ─────
           WebSocketService.instance.broadcast(_cartRoom, {
             'event': 'added',
             'cart': newCart.toJson(),
@@ -547,6 +573,7 @@ class _AddProductScreenState extends State<AddProductScreen>
       } else {
         _insert(_ScannedItem(rawSku: sku, product: product, status: _ScanStatus.failed));
         HapticFeedback.vibrate();
+        _playError(); // ← error sound: add failed
         _setStatus('Failed to add: $sku', isNfc: isNfc);
       }
     } catch (_) {
@@ -554,6 +581,7 @@ class _AddProductScreenState extends State<AddProductScreen>
       _processedSkus.add(normalized);
       _insert(_ScannedItem(rawSku: sku, status: _ScanStatus.failed));
       HapticFeedback.vibrate();
+      _playError(); // ← error sound: exception
       _setStatus('Error scanning: $sku', isNfc: isNfc);
     } finally {
       _inflightSkus.remove(normalized);
@@ -755,58 +783,82 @@ class _AddProductScreenState extends State<AddProductScreen>
     );
   }
 
+  // ── NFC panel — tapping the whole container restarts NFC if session dropped
   Widget _buildNfcPanel(ColorScheme scheme, Color teal) {
+    // Session is dropped when _nfcAvailable=true but _nfcListening=false.
+    // We allow restart taps in that state (or any time the icon is tapped and
+    // NFC is available), so the GestureDetector is always active when available.
+    final canRestart = _nfcAvailable && !_nfcListening && !_isApiLoading;
+
     return Padding(
       padding: const EdgeInsets.fromLTRB(14, 12, 14, 0),
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(16),
-        child: SizedBox(
-          height: 210,
-          child: Stack(
-            fit: StackFit.expand,
-            children: [
-              Container(color: const Color(0xFF0D1117)),
-              Center(
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    _NfcPulseIcon(
-                      ready: _nfcReady && !_isApiLoading,
-                      available: _nfcAvailable,
-                    ),
-                    const SizedBox(height: 14),
-                    Text(
-                      !_nfcAvailable
-                          ? 'NFC Not Available'
-                          : _isApiLoading
-                              ? 'Processing…'
-                              : _nfcReady
-                                  ? 'Ready to Scan'
-                                  : 'NFC',
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 15,
-                        fontWeight: FontWeight.w700,
-                      ),
-                    ),
-                    if (_nfcAvailable && _nfcReady && !_isApiLoading)
-                      const Padding(
-                        padding: EdgeInsets.only(top: 4),
-                        child: Text(
-                          'Tap your NFC tag',
-                          style: TextStyle(color: Colors.white54, fontSize: 12),
+      child: GestureDetector(
+        onTap: canRestart ? _restartNfc : null,
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(16),
+          child: SizedBox(
+            height: 210,
+            child: Stack(
+              fit: StackFit.expand,
+              children: [
+                Container(color: const Color(0xFF0D1117)),
+                Center(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      // The icon itself is also individually tappable for clarity
+                      GestureDetector(
+                        onTap: canRestart ? _restartNfc : null,
+                        child: _NfcPulseIcon(
+                          ready: _nfcReady && !_isApiLoading,
+                          available: _nfcAvailable,
+                          canRestart: canRestart,
                         ),
                       ),
-                  ],
+                      const SizedBox(height: 14),
+                      Text(
+                        !_nfcAvailable
+                            ? 'NFC Not Available'
+                            : _isApiLoading
+                                ? 'Processing…'
+                                : _nfcReady
+                                    ? 'Ready to Scan'
+                                    : canRestart
+                                        ? 'Tap to Restart NFC'
+                                        : 'NFC',
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 15,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                      if (_nfcAvailable && _nfcReady && !_isApiLoading)
+                        const Padding(
+                          padding: EdgeInsets.only(top: 4),
+                          child: Text(
+                            'Tap your NFC tag',
+                            style: TextStyle(color: Colors.white54, fontSize: 12),
+                          ),
+                        ),
+                      if (canRestart)
+                        const Padding(
+                          padding: EdgeInsets.only(top: 4),
+                          child: Text(
+                            'Tap anywhere to restart',
+                            style: TextStyle(color: Colors.white38, fontSize: 12),
+                          ),
+                        ),
+                    ],
+                  ),
                 ),
-              ),
-              Positioned(
-                bottom: 10,
-                left: 12,
-                right: 12,
-                child: _StatusBadge(text: _nfcStatus),
-              ),
-            ],
+                Positioned(
+                  bottom: 10,
+                  left: 12,
+                  right: 12,
+                  child: _StatusBadge(text: _nfcStatus),
+                ),
+              ],
+            ),
           ),
         ),
       ),
@@ -1209,9 +1261,15 @@ class _StatusBadge extends StatelessWidget {
 // Animated NFC pulse icon
 // ─────────────────────────────────────────────────────────────────────────────
 class _NfcPulseIcon extends StatefulWidget {
-  const _NfcPulseIcon({required this.ready, required this.available});
+  const _NfcPulseIcon({
+    required this.ready,
+    required this.available,
+    this.canRestart = false,
+  });
   final bool ready;
   final bool available;
+  /// When true the session has dropped and a tap should restart it.
+  final bool canRestart;
 
   @override
   State<_NfcPulseIcon> createState() => _NfcPulseIconState();
@@ -1244,6 +1302,7 @@ class _NfcPulseIconState extends State<_NfcPulseIcon>
   @override
   Widget build(BuildContext context) {
     const teal = Color(0xFF0F766E);
+
     if (!widget.available) {
       return Container(
         width: 72, height: 72,
@@ -1253,6 +1312,20 @@ class _NfcPulseIconState extends State<_NfcPulseIcon>
         child: const Icon(Icons.nfc_rounded, size: 36, color: Colors.white24),
       );
     }
+
+    // Session dropped — show a static "tap to restart" state
+    if (widget.canRestart) {
+      return Container(
+        width: 72, height: 72,
+        decoration: BoxDecoration(
+          color: Colors.white.withOpacity(0.10),
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(color: Colors.white24, width: 2),
+        ),
+        child: const Icon(Icons.refresh_rounded, size: 36, color: Colors.white70),
+      );
+    }
+
     if (!widget.ready) {
       return Container(
         width: 72, height: 72,
@@ -1262,6 +1335,7 @@ class _NfcPulseIconState extends State<_NfcPulseIcon>
         child: const Icon(Icons.nfc_rounded, size: 36, color: Colors.white54),
       );
     }
+
     return AnimatedBuilder(
       animation: _ctrl,
       builder: (_, __) => Transform.scale(
@@ -1403,6 +1477,17 @@ class _CameraErrorPlaceholder extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    if (error.errorCode != MobileScannerErrorCode.permissionDenied &&
+        error.errorCode != MobileScannerErrorCode.unsupported) {
+      return const Center(
+        child: SizedBox(
+          width: 24,
+          height: 24,
+          child: CircularProgressIndicator(strokeWidth: 2, color: Color(0xFF0F766E)),
+        ),
+      );
+    }
+
     return Container(
       color: const Color(0xFF0D1117),
       child: Center(
