@@ -166,6 +166,8 @@ class _CartListScreenState extends State<CartListScreen> {
     final cartId = cart.id?.trim() ?? '';
     if (cartId.isEmpty) return;
 
+    SystemSound.play(SystemSoundType.click);
+
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (_) => AlertDialog(
@@ -289,6 +291,7 @@ class _CartListScreenState extends State<CartListScreen> {
               duration: Duration(seconds: 2),
             ),
           );
+          SystemSound.play(SystemSoundType.click);
           HapticFeedback.lightImpact();
           // Remove locally — instant UI, no API call
           _controller.removeItemLocally(cartId);
@@ -594,7 +597,6 @@ class _CartListScreenState extends State<CartListScreen> {
                           child: _CartTile(
                             cart: items[index],
                             currentUserId: _currentUserId,
-                            // ← only "Added by me" cards get this callback
                             onRemove: () => _removeFromCart(items[index]),
                           ),
                         );
@@ -814,40 +816,6 @@ class _CartTile extends StatelessWidget {
                     ),
                   ),
                   const Spacer(),
-                  // ── Remove button (only on "Added by me" cards) ─────────
-                  if (onRemove != null)
-                    Tooltip(
-                      message: 'Remove from cart',
-                      child: GestureDetector(
-                        onTap: onRemove,
-                        // Stop tap from also triggering the card's onTap
-                        behavior: HitTestBehavior.opaque,
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(
-                              horizontal: 10, vertical: 5),
-                          decoration: BoxDecoration(
-                            color: Colors.white.withValues(alpha: 0.18),
-                            borderRadius: BorderRadius.circular(8),
-                          ),
-                          child: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: const [
-                              Icon(Icons.delete_outline_rounded,
-                                  size: 14, color: Colors.white),
-                              SizedBox(width: 4),
-                              Text(
-                                'Remove',
-                                style: TextStyle(
-                                  fontSize: 11,
-                                  fontWeight: FontWeight.w600,
-                                  color: Colors.white,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ),
-                    ),
                 ],
               ),
             ),
@@ -905,6 +873,13 @@ class _CartTile extends StatelessWidget {
                     ],
                   ),
                 ),
+                if (onRemove != null)
+                  IconButton(
+                    onPressed: onRemove,
+                    icon: const Icon(Icons.delete_outline_rounded),
+                    color: const Color(0xFFEF4444),
+                    tooltip: 'Remove from cart',
+                  ),
               ],
             ),
           ),
